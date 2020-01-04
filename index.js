@@ -47,16 +47,16 @@ module.exports = function(connect) {
 
   /*
    * Return condition for filtering by expiration
-   * @return {String} expired sql condition string
+   * @return {String} expire sql condition string
    * @api private
    */
   function expiredCondition(knex) {
-    var condition = "CAST(? as " + timestampTypeName(knex) + ") <= expired";
+    var condition = "CAST(? as " + timestampTypeName(knex) + ") <= expire";
     if (isSqlite3(knex)) {
       // sqlite3 date condition is a special case.
-      condition = "datetime(?) <= datetime(expired)";
+      condition = "datetime(?) <= datetime(expire)";
     } else if (isOracle(knex)) {
-      condition = "CAST(? as " + timestampTypeName(knex) + ') <= "expired"';
+      condition = "CAST(? as " + timestampTypeName(knex) + ') <= "expire"';
     }
     return condition;
   }
@@ -115,7 +115,7 @@ module.exports = function(connect) {
     return (
       "with new_values (" +
       sidfieldname +
-      ", expired, sess) as (" +
+      ", expire, sess) as (" +
       "  values (?, ?::timestamp with time zone, ?::json)" +
       "), " +
       "upsert as " +
@@ -128,7 +128,7 @@ module.exports = function(connect) {
       " = nv." +
       sidfieldname +
       ", " +
-      "    expired = nv.expired, " +
+      "    expire = nv.expire, " +
       "    sess = nv.sess " +
       "  from new_values nv " +
       "  where cs." +
@@ -142,10 +142,10 @@ module.exports = function(connect) {
       tablename +
       " (" +
       sidfieldname +
-      ", expired, sess) " +
+      ", expire, sess) " +
       "select " +
       sidfieldname +
-      ", expired, sess " +
+      ", expire, sess " +
       "from new_values " +
       "where not exists (select 1 from upsert up where up." +
       sidfieldname +
@@ -166,7 +166,7 @@ module.exports = function(connect) {
       tablename +
       " (" +
       sidfieldname +
-      ", expired, sess) values (?, ?, ?);"
+      ", expire, sess) values (?, ?, ?);"
     );
   }
 
@@ -181,7 +181,7 @@ module.exports = function(connect) {
       tablename +
       " (" +
       sidfieldname +
-      ", expired, sess) values (?, ?, ?) on duplicate key update expired=values(expired), sess=values(sess);"
+      ", expire, sess) values (?, ?, ?) on duplicate key update expire=values(expire), sess=values(sess);"
     );
   }
 
@@ -197,26 +197,26 @@ module.exports = function(connect) {
       " as T " +
       "using (values (?, ?, ?)) as S (" +
       sidfieldname +
-      ", expired, sess) " +
+      ", expire, sess) " +
       "on (T." +
       sidfieldname +
       " = S." +
       sidfieldname +
       ") " +
       "when matched then " +
-      "update set expired = S.expired, sess = S.sess " +
+      "update set expire = S.expire, sess = S.sess " +
       "when not matched by target then " +
       "insert (" +
       sidfieldname +
-      ", expired, sess) values (S." +
+      ", expire, sess) values (S." +
       sidfieldname +
-      ", S.expired, S.sess) " +
+      ", S.expire, S.sess) " +
       "output inserted.*;"
     );
   }
 
   /*
-   * Remove expired sessions from database.
+   * Remove expire sessions from database.
    * @param {Object} store
    * @param {number} interval
    * @api private
@@ -225,13 +225,13 @@ module.exports = function(connect) {
     return store.ready
       .then(function() {
         var condition =
-          "expired < CAST(? as " + timestampTypeName(store.knex) + ")";
+          "expire < CAST(? as " + timestampTypeName(store.knex) + ")";
         if (isSqlite3(store.knex)) {
           // sqlite3 date condition is a special case.
-          condition = "datetime(expired) < datetime(?)";
+          condition = "datetime(expire) < datetime(?)";
         } else if (isOracle(store.knex)) {
           condition =
-            '"expired" < CAST(? as ' + timestampTypeName(store.knex) + ")";
+            '"expire" < CAST(? as ' + timestampTypeName(store.knex) + ")";
         }
         return store
           .knex(store.tablename)
@@ -261,7 +261,7 @@ module.exports = function(connect) {
     Store.call(self, options);
 
     if (!options.clearInterval) {
-      // Time to run clear expired function.
+      // Time to run clear expire function.
       options.clearInterval = 60000;
     }
 
@@ -293,12 +293,12 @@ module.exports = function(connect) {
             }
             if (isMySQL(self.knex) || isMSSQL(self.knex)) {
               table
-                .dateTime("expired")
+                .dateTime("expire")
                 .notNullable()
                 .index();
             } else {
               table
-                .timestamp("expired")
+                .timestamp("expire")
                 .notNullable()
                 .index();
             }
@@ -359,10 +359,10 @@ module.exports = function(connect) {
     var self = this;
     var maxAge = sess.cookie.maxAge;
     var now = new Date().getTime();
-    var expired = maxAge ? now + maxAge : now + oneDay;
+    var expire = maxAge ? now + maxAge : now + oneDay;
     sess = JSON.stringify(sess);
 
-    var dbDate = dateAsISO(self.knex, expired);
+    var dbDate = dateAsISO(self.knex, expire);
 
     if (isSqlite3(self.knex)) {
       // sqlite optimized query
@@ -427,14 +427,14 @@ module.exports = function(connect) {
                 if (foundKeys.length === 0) {
                   return trx.from(self.tablename).insert({
                     [self.sidfieldname]: sid,
-                    expired: dbDate,
+                    expire: dbDate,
                     sess: sess
                   });
                 } else {
                   return trx(self.tablename)
                     .where(self.sidfieldname, "=", sid)
                     .update({
-                      expired: dbDate,
+                      expire: dbDate,
                       sess: sess
                     });
                 }
@@ -461,7 +461,7 @@ module.exports = function(connect) {
         .where(this.sidfieldname, "=", sid)
         .andWhereRaw(condition, dateAsISO(this.knex))
         .update({
-          expired: dateAsISO(this.knex, sess.cookie.expires)
+          expire: dateAsISO(this.knex, sess.cookie.expires)
         })
         .asCallback(fn);
     }
